@@ -1,0 +1,19 @@
+```js
+# DeepSeek API
+DEEPSEEK_API_KEY=sk-1cbaf5d3ca93437e87cf79d915ba1b11
+DEEPSEEK_API_URL=https://api.deepseek.com/v1/chat/completions
+
+# 高德地图 Web服务 API Key
+AMAP_WEB_API_KEY=40e679a3c6510879eb3819f651506981
+
+# 高德地图JS API Key（用于前端地图显示）
+VITE_AMAP_JS_API_KEY=0abddb08af1c7418090fa5624610ea08
+
+# Supabase 配置 (可选)
+SUPABASE_URL=https://hujyqrfsqnzvunbigfgj.supabase.co
+SUPABASE_ANON_KEY=eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Imh1anlxcmZzcW56dnVuYmlnZmdqIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NjE4OTE5NzIsImV4cCI6MjA3NzQ2Nzk3Mn0.w0P-nQIx5Er_EXPiBqfliIhb6p3AXexUFHnd9iCKEIc
+
+# Supabase配置（与后端相同）
+VITE_SUPABASE_URL=https://hujyqrfsqnzvunbigfgj.supabase.co
+VITE_SUPABASE_ANON_KEY=eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Imh1anlxcmZzcW56dnVuYmlnZmdqIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NjE4OTE5NzIsImV4cCI6MjA3NzQ2Nzk3Mn0.w0P-nQIx5Er_EXPiBqfliIhb6p3AXexUFHnd9iCKEIc
+```
