@@ -3,8 +3,11 @@ import { useNavigate, useParams } from 'react-router-dom';
 import LoadingSpinner from '../components/LoadingSpinner';
 import MapContainer from '../components/MapContainer';
 import ItineraryView from '../components/ItineraryView';
-import { Itinerary, Marker } from '../types';
-import { getItinerary, deleteItinerary } from '../services/itinerary';
+import EditableItineraryDay from '../components/EditableItineraryDay';
+import MapSearch from '../components/MapSearch';
+import { Itinerary, Marker, Event } from '../types';
+import { getItinerary, deleteItinerary, updateItinerary } from '../services/itinerary';
+import { POI, batchRoutes, RouteInfo } from '../services/location';
 
 const ItineraryDetail: React.FC = () => {
   const navigate = useNavigate();
@@ -12,10 +15,16 @@ const ItineraryDetail: React.FC = () => {
   
   const [itinerary, setItinerary] = useState<Itinerary | null>(null);
   const [isLoading, setIsLoading] = useState(true);
+  const [isSaving, setIsSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [selectedDay, setSelectedDay] = useState<number>(1);
   const [markers, setMarkers] = useState<Marker[]>([]);
   const [focusLocation, setFocusLocation] = useState<{ lat: number; lng: number } | null>(null);
+  const [isEditMode, setIsEditMode] = useState(false);
+  const [routes, setRoutes] = useState<RouteInfo[]>([]);
+  const [isCalculatingRoute, setIsCalculatingRoute] = useState(false);
+  const [showMapSearch, setShowMapSearch] = useState(false);
+  const [hasUnsavedChanges, setHasUnsavedChanges] = useState(false);
 
   // 加载行程数据
   useEffect(() => {
@@ -73,6 +82,32 @@ const ItineraryDetail: React.FC = () => {
     setMarkers(newMarkers);
   }, [itinerary, selectedDay]);
 
+  // 当标记变化时，重新计算路线
+  useEffect(() => {
+    if (!isEditMode || markers.length < 2) {
+      setRoutes([]);
+      return;
+    }
+
+    const calculateRoutes = async () => {
+      setIsCalculatingRoute(true);
+      try {
+        const locations = markers.map(m => ({ lng: m.position.lng, lat: m.position.lat }));
+        const calculatedRoutes = await batchRoutes(locations, 'walking');
+        setRoutes(calculatedRoutes);
+        console.log('✅ 路线计算完成:', calculatedRoutes);
+      } catch (error) {
+        console.error('❌ 路线计算失败:', error);
+      } finally {
+        setIsCalculatingRoute(false);
+      }
+    };
+
+    // 延迟计算，避免频繁调用
+    const timer = setTimeout(calculateRoutes, 500);
+    return () => clearTimeout(timer);
+  }, [markers, isEditMode]);
+
   // 处理点击地点事件
   const handleLocationClick = (lat: number, lng: number) => {
     console.log('🗺️ Focus on location:', { lat, lng });
@@ -94,6 +129,66 @@ const ItineraryDetail: React.FC = () => {
       console.error('Delete error:', error);
       alert('删除失败，请稍后重试');
     }
+  };
+
+  // 处理保存
+  const handleSave = async () => {
+    if (!id || !itinerary) return;
+
+    setIsSaving(true);
+    try {
+      await updateItinerary(id, itinerary);
+      alert('行程已保存');
+      setHasUnsavedChanges(false);
+      setIsEditMode(false);
+    } catch (error) {
+      console.error('Save error:', error);
+      alert('保存失败，请稍后重试');
+    } finally {
+      setIsSaving(false);
+    }
+  };
+
+  // 处理天数的事件变化
+  const handleDayEventsChange = (dayNumber: number, newEvents: Event[]) => {
+    if (!itinerary) return;
+
+    const updatedDays = itinerary.days.map(day => {
+      if (day.dayNumber === dayNumber) {
+        return { ...day, events: newEvents };
+      }
+      return day;
+    });
+
+    setItinerary({ ...itinerary, days: updatedDays });
+    setHasUnsavedChanges(true);
+  };
+
+  // 从地图选择地点
+  const handleSelectPlaceFromMap = (poi: POI) => {
+    if (!itinerary) return;
+
+    const currentDay = itinerary.days.find(day => day.dayNumber === selectedDay);
+    if (!currentDay) return;
+
+    const [lng, lat] = poi.location.split(',').map(parseFloat);
+    const newEvent: Event = {
+      eventOrder: currentDay.events.length + 1,
+      type: 'attraction',
+      name: poi.name,
+      address: poi.address,
+      latitude: lat,
+      longitude: lng,
+      poiId: poi.id,
+      isMainEvent: true,
+    };
+
+    handleDayEventsChange(selectedDay, [...currentDay.events, newEvent]);
+    setShowMapSearch(false);
+    
+    // 聚焦到新添加的地点
+    setFocusLocation({ lat, lng });
+    setTimeout(() => setFocusLocation(null), 1000);
   };
 
   if (isLoading) {
@@ -164,14 +259,56 @@ const ItineraryDetail: React.FC = () => {
                   {itinerary.travelers && ` · ${itinerary.travelers}人`}
                   {itinerary.budget && ` · ¥${itinerary.budget}`}
                 </p>
+                {hasUnsavedChanges && (
+                  <p className="text-orange-600 text-sm mt-1 flex items-center gap-1">
+                    <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" />
+                    </svg>
+                    有未保存的更改
+                  </p>
+                )}
               </div>
               <div className="flex gap-2">
-                <button
-                  onClick={handleDelete}
-                  className="btn btn-secondary"
-                >
-                  删除行程
-                </button>
+                {!isEditMode ? (
+                  <>
+                    <button
+                      onClick={() => setIsEditMode(true)}
+                      className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors"
+                    >
+                      ✏️ 编辑行程
+                    </button>
+                    <button
+                      onClick={handleDelete}
+                      className="px-4 py-2 bg-red-600 text-white rounded-lg hover:bg-red-700 transition-colors"
+                    >
+                      🗑️ 删除行程
+                    </button>
+                  </>
+                ) : (
+                  <>
+                    <button
+                      onClick={handleSave}
+                      disabled={isSaving || !hasUnsavedChanges}
+                      className="px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 disabled:bg-gray-400 disabled:cursor-not-allowed transition-colors"
+                    >
+                      {isSaving ? '保存中...' : '💾 保存更改'}
+                    </button>
+                    <button
+                      onClick={() => {
+                        if (hasUnsavedChanges && !confirm('有未保存的更改，确定要退出编辑模式吗？')) {
+                          return;
+                        }
+                        setIsEditMode(false);
+                        setHasUnsavedChanges(false);
+                        // 重新加载数据
+                        window.location.reload();
+                      }}
+                      className="px-4 py-2 bg-gray-500 text-white rounded-lg hover:bg-gray-600 transition-colors"
+                    >
+                      ❌ 取消编辑
+                    </button>
+                  </>
+                )}
               </div>
             </div>
 
@@ -197,21 +334,88 @@ const ItineraryDetail: React.FC = () => {
             )}
 
             {/* 当前天的行程 */}
-            <ItineraryView 
-              itinerary={itinerary}
-              selectedDay={selectedDay}
-              onLocationClick={handleLocationClick}
-            />
+            {isEditMode ? (
+              <EditableItineraryDay
+                dayNumber={selectedDay}
+                date={itinerary.days.find(d => d.dayNumber === selectedDay)?.date}
+                events={itinerary.days.find(d => d.dayNumber === selectedDay)?.events || []}
+                onEventsChange={(newEvents) => handleDayEventsChange(selectedDay, newEvents)}
+                onLocationClick={handleLocationClick}
+                onAddFromMap={() => setShowMapSearch(true)}
+              />
+            ) : (
+              <ItineraryView 
+                itinerary={itinerary}
+                selectedDay={selectedDay}
+                onLocationClick={handleLocationClick}
+              />
+            )}
           </div>
 
           {/* 右侧：地图 */}
           <div className="lg:col-span-1">
-            <div className="sticky top-4 bg-white rounded-lg shadow-md overflow-hidden">
-              <div className="h-[600px]">
-                <MapContainer 
-                  markers={markers} 
-                  focusLocation={focusLocation}
-                />
+            <div className="sticky top-4 space-y-4">
+              {/* 地图搜索 */}
+              {isEditMode && showMapSearch && (
+                <div className="bg-white rounded-lg shadow-md p-4">
+                  <div className="flex justify-between items-center mb-3">
+                    <h3 className="font-semibold">搜索地点</h3>
+                    <button
+                      onClick={() => setShowMapSearch(false)}
+                      className="text-gray-500 hover:text-gray-700"
+                    >
+                      <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+                      </svg>
+                    </button>
+                  </div>
+                  <MapSearch
+                    city={itinerary.destination}
+                    onSelectPlace={handleSelectPlaceFromMap}
+                  />
+                </div>
+              )}
+
+              {/* 地图 */}
+              <div className="bg-white rounded-lg shadow-md overflow-hidden">
+                {isCalculatingRoute && (
+                  <div className="bg-blue-50 border-b border-blue-200 px-4 py-2 text-sm text-blue-700 flex items-center gap-2">
+                    <div className="w-4 h-4 border-2 border-blue-600 border-t-transparent rounded-full animate-spin"></div>
+                    正在规划路线...
+                  </div>
+                )}
+                <div className="h-[600px]">
+                  <MapContainer 
+                    markers={markers} 
+                    focusLocation={focusLocation}
+                    routes={routes}
+                    showSimplePath={!isEditMode}
+                  />
+                </div>
+                {/* 路线信息 */}
+                {routes.length > 0 && (
+                  <div className="border-t border-gray-200 p-3 bg-gray-50">
+                    <h4 className="text-sm font-semibold mb-2">路线信息</h4>
+                    <div className="space-y-1 text-xs text-gray-600">
+                      <div className="flex justify-between">
+                        <span>总距离：</span>
+                        <span className="font-medium">
+                          {(routes.reduce((sum, r) => sum + r.distance, 0) / 1000).toFixed(1)} km
+                        </span>
+                      </div>
+                      <div className="flex justify-between">
+                        <span>预计时间：</span>
+                        <span className="font-medium">
+                          {Math.round(routes.reduce((sum, r) => sum + r.duration, 0) / 60)} 分钟
+                        </span>
+                      </div>
+                      <div className="flex justify-between">
+                        <span>方式：</span>
+                        <span className="font-medium">步行</span>
+                      </div>
+                    </div>
+                  </div>
+                )}
               </div>
             </div>
           </div>

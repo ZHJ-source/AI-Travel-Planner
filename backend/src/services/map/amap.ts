@@ -1,5 +1,4 @@
 import axios from 'axios';
-import { ENV } from '../../config/env';
 import { apiKeyManager } from '../../config/apiKeyManager';
 import { AMapPOI } from '../../types';
 
@@ -218,5 +217,174 @@ export function parseLocation(location: string): { lng: number; lat: number } | 
     }
   }
   return null;
+}
+
+/**
+ * 路线规划结果
+ */
+export interface RouteResult {
+  distance: number; // 距离（米）
+  duration: number; // 时间（秒）
+  strategy: string;
+  steps?: any[];
+  path: Array<{ lng: number; lat: number }>;
+}
+
+/**
+ * 获取步行路线规划
+ */
+export async function getWalkingRoute(
+  origin: string, // 格式：经度,纬度
+  destination: string, // 格式：经度,纬度
+  customApiKey?: string
+): Promise<RouteResult | null> {
+  try {
+    const apiKey = apiKeyManager.getKey('AMAP_WEB_API_KEY', customApiKey);
+    
+    if (!apiKey) {
+      console.error('AMap API Key not configured');
+      return null;
+    }
+
+    console.log(`[高德地图] 步行路线规划: ${origin} -> ${destination}`);
+
+    const response = await axios.get(
+      'https://restapi.amap.com/v3/direction/walking',
+      {
+        params: {
+          key: apiKey,
+          origin,
+          destination,
+        }
+      }
+    );
+
+    if (response.data.status === '1' && response.data.route?.paths?.length > 0) {
+      const path = response.data.route.paths[0];
+      
+      // 解析路径坐标
+      const pathCoords: Array<{ lng: number; lat: number }> = [];
+      if (path.steps) {
+        path.steps.forEach((step: any) => {
+          if (step.polyline) {
+            const coords = step.polyline.split(';');
+            coords.forEach((coord: string) => {
+              const [lng, lat] = coord.split(',').map(parseFloat);
+              if (!isNaN(lng) && !isNaN(lat)) {
+                pathCoords.push({ lng, lat });
+              }
+            });
+          }
+        });
+      }
+      
+      return {
+        distance: parseInt(path.distance),
+        duration: parseInt(path.duration),
+        strategy: '步行',
+        steps: path.steps,
+        path: pathCoords,
+      };
+    }
+    
+    return null;
+  } catch (error) {
+    console.error('[高德地图] 步行路线规划错误:', error);
+    return null;
+  }
+}
+
+/**
+ * 获取驾车路线规划
+ */
+export async function getDrivingRoute(
+  origin: string,
+  destination: string,
+  customApiKey?: string
+): Promise<RouteResult | null> {
+  try {
+    const apiKey = apiKeyManager.getKey('AMAP_WEB_API_KEY', customApiKey);
+    
+    if (!apiKey) {
+      console.error('AMap API Key not configured');
+      return null;
+    }
+
+    console.log(`[高德地图] 驾车路线规划: ${origin} -> ${destination}`);
+
+    const response = await axios.get(
+      'https://restapi.amap.com/v3/direction/driving',
+      {
+        params: {
+          key: apiKey,
+          origin,
+          destination,
+          extensions: 'base',
+        }
+      }
+    );
+
+    if (response.data.status === '1' && response.data.route?.paths?.length > 0) {
+      const path = response.data.route.paths[0];
+      
+      // 解析路径坐标
+      const pathCoords: Array<{ lng: number; lat: number }> = [];
+      if (path.steps) {
+        path.steps.forEach((step: any) => {
+          if (step.polyline) {
+            const coords = step.polyline.split(';');
+            coords.forEach((coord: string) => {
+              const [lng, lat] = coord.split(',').map(parseFloat);
+              if (!isNaN(lng) && !isNaN(lat)) {
+                pathCoords.push({ lng, lat });
+              }
+            });
+          }
+        });
+      }
+      
+      return {
+        distance: parseInt(path.distance),
+        duration: parseInt(path.duration),
+        strategy: '驾车',
+        steps: path.steps,
+        path: pathCoords,
+      };
+    }
+    
+    return null;
+  } catch (error) {
+    console.error('[高德地图] 驾车路线规划错误:', error);
+    return null;
+  }
+}
+
+/**
+ * 批量路线规划（多个地点之间）
+ */
+export async function batchRoutes(
+  locations: Array<{ lng: number; lat: number }>,
+  mode: 'walking' | 'driving' = 'walking',
+  customApiKey?: string
+): Promise<RouteResult[]> {
+  const routes: RouteResult[] = [];
+  
+  for (let i = 0; i < locations.length - 1; i++) {
+    const origin = `${locations[i].lng},${locations[i].lat}`;
+    const destination = `${locations[i + 1].lng},${locations[i + 1].lat}`;
+    
+    const route = mode === 'walking'
+      ? await getWalkingRoute(origin, destination, customApiKey)
+      : await getDrivingRoute(origin, destination, customApiKey);
+    
+    if (route) {
+      routes.push(route);
+    }
+    
+    // 添加延迟避免API限流
+    await sleep(300);
+  }
+  
+  return routes;
 }
 

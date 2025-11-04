@@ -109,6 +109,15 @@ export async function getItinerary(id: string) {
 }
 
 /**
+ * 更新行程
+ */
+export async function updateItinerary(id: string, itinerary: Itinerary) {
+  console.log('📤 Updating itinerary:', id);
+  const response = await api.put(`/api/itinerary/${id}`, itinerary);
+  return response.data;
+}
+
+/**
  * 删除行程
  */
 export async function deleteItinerary(id: string) {

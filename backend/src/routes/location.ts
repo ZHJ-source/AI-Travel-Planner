@@ -1,5 +1,12 @@
 import { Router, Request, Response } from 'express';
-import { searchPlace, validateLocation, searchNearbyPOI } from '../services/map/amap';
+import { 
+  searchPlace, 
+  validateLocation, 
+  searchNearbyPOI,
+  getWalkingRoute,
+  getDrivingRoute,
+  batchRoutes
+} from '../services/map/amap';
 
 const router = Router();
 
@@ -67,6 +74,55 @@ router.get('/nearby', async (req: Request, res: Response) => {
   } catch (error) {
     console.error('Get nearby POI error:', error);
     res.status(500).json({ error: 'Failed to get nearby POI' });
+  }
+});
+
+/**
+ * 路线规划
+ */
+router.post('/route', async (req: Request, res: Response) => {
+  try {
+    const { origin, destination, mode } = req.body;
+    
+    if (!origin || !destination) {
+      res.status(400).json({ error: 'Origin and destination are required' });
+      return;
+    }
+    
+    const route = mode === 'driving'
+      ? await getDrivingRoute(origin, destination)
+      : await getWalkingRoute(origin, destination);
+    
+    if (!route) {
+      res.status(404).json({ error: 'Route not found' });
+      return;
+    }
+    
+    res.json({ route });
+  } catch (error) {
+    console.error('Route planning error:', error);
+    res.status(500).json({ error: 'Failed to plan route' });
+  }
+});
+
+/**
+ * 批量路线规划
+ */
+router.post('/routes/batch', async (req: Request, res: Response) => {
+  try {
+    const { locations, mode } = req.body;
+    
+    if (!locations || !Array.isArray(locations) || locations.length < 2) {
+      res.status(400).json({ error: 'At least 2 locations are required' });
+      return;
+    }
+    
+    const routes = await batchRoutes(locations, mode || 'walking');
+    
+    res.json({ routes });
+  } catch (error) {
+    console.error('Batch route planning error:', error);
+    res.status(500).json({ error: 'Failed to plan routes' });
   }
 });
 

@@ -233,6 +233,77 @@ router.get('/:id', authMiddleware, async (req: AuthRequest, res: Response) => {
 });
 
 /**
+ * 更新行程
+ */
+router.put('/:id', authMiddleware, async (req: AuthRequest, res: Response) => {
+  try {
+    const { id } = req.params;
+    const itinerary: Itinerary = req.body;
+    
+    console.log('📝 Updating itinerary:', id);
+    
+    // 验证权限
+    const { data: existing, error: fetchError } = await supabaseAdmin
+      .from('itineraries')
+      .select('user_id')
+      .eq('id', id)
+      .single();
+    
+    if (fetchError || !existing) {
+      res.status(404).json({ error: 'Itinerary not found' });
+      return;
+    }
+    
+    if (existing.user_id !== req.user!.id) {
+      res.status(403).json({ error: 'Unauthorized' });
+      return;
+    }
+    
+    // 更新行程
+    const updateData = {
+      title: itinerary.title,
+      data: {
+        destination: itinerary.destination,
+        startDate: itinerary.startDate,
+        endDate: itinerary.endDate,
+        days: itinerary.days,
+        travelers: itinerary.travelers,
+        budget: itinerary.budget,
+        preferences: itinerary.preferences,
+        status: itinerary.status || 'draft',
+        transportation: itinerary.transportation,
+        accommodation: itinerary.accommodation,
+      }
+    };
+    
+    const { data: updated, error: updateError } = await supabaseAdmin
+      .from('itineraries')
+      .update(updateData)
+      .eq('id', id)
+      .select()
+      .single();
+    
+    if (updateError) {
+      console.error('❌ Failed to update itinerary:', updateError);
+      throw updateError;
+    }
+    
+    console.log('✅ Itinerary updated successfully');
+    
+    res.json({
+      message: 'Itinerary updated successfully',
+      itinerary: updated,
+    });
+  } catch (error: any) {
+    console.error('❌ Update itinerary error:', error);
+    res.status(500).json({ 
+      error: 'Failed to update itinerary',
+      message: error?.message || String(error),
+    });
+  }
+});
+
+/**
  * 删除行程
  */
 router.delete('/:id', authMiddleware, async (req: AuthRequest, res: Response) => {

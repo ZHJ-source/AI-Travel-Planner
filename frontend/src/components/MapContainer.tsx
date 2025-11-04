@@ -2,6 +2,13 @@ import React, { useEffect, useRef, useState } from 'react';
 import AMapLoader from '@amap/amap-jsapi-loader';
 import { Marker } from '../types';
 
+interface RouteInfo {
+  distance: number;
+  duration: number;
+  strategy: string;
+  path: Array<{ lng: number; lat: number }>;
+}
+
 interface MapContainerProps {
   markers?: Marker[];
   center?: { lng: number; lat: number };
@@ -9,6 +16,8 @@ interface MapContainerProps {
   onMarkerClick?: (marker: Marker) => void;
   className?: string;
   focusLocation?: { lat: number; lng: number } | null;
+  routes?: RouteInfo[];
+  showSimplePath?: boolean; // 是否显示简单路径（仅连线）
 }
 
 const MapContainer: React.FC<MapContainerProps> = ({
@@ -18,6 +27,8 @@ const MapContainer: React.FC<MapContainerProps> = ({
   onMarkerClick,
   className = 'w-full h-full',
   focusLocation,
+  routes = [],
+  showSimplePath = true,
 }) => {
   const mapRef = useRef<HTMLDivElement>(null);
   const [map, setMap] = useState<any>(null);
@@ -213,8 +224,49 @@ const MapContainer: React.FC<MapContainerProps> = ({
       }
     });
 
-    // 如果有多个标记，绘制路线
-    if (validMarkers.length > 1) {
+    // 如果有路线规划数据，绘制详细路线
+    if (routes && routes.length > 0) {
+      try {
+        console.log('MapContainer: 绘制详细路线', routes.length);
+        routes.forEach((route, index) => {
+          if (route.path && route.path.length > 0) {
+            const path = route.path.map((p) => [p.lng, p.lat]);
+            const polyline = new (window as any).AMap.Polyline({
+              path,
+              strokeColor: '#3b82f6',
+              strokeWeight: 5,
+              strokeOpacity: 0.9,
+              showDir: true,
+            });
+            map.add(polyline);
+            markersRef.current.push(polyline);
+            
+            // 添加路线信息标签（在路线中点）
+            if (path.length > 0) {
+              const midPoint = path[Math.floor(path.length / 2)];
+              const infoText = `${(route.distance / 1000).toFixed(1)}km · ${Math.round(route.duration / 60)}分钟`;
+              const text = new (window as any).AMap.Text({
+                text: infoText,
+                position: midPoint,
+                style: {
+                  'background-color': 'rgba(59, 130, 246, 0.9)',
+                  'border': 'none',
+                  'color': 'white',
+                  'font-size': '12px',
+                  'padding': '4px 8px',
+                  'border-radius': '4px',
+                },
+              });
+              map.add(text);
+              markersRef.current.push(text);
+            }
+          }
+        });
+      } catch (error) {
+        console.error('MapContainer: 绘制详细路线失败', error);
+      }
+    } else if (showSimplePath && validMarkers.length > 1) {
+      // 如果没有详细路线但有多个标记，绘制简单路线
       try {
         const path = validMarkers.map((m) => [m.position.lng, m.position.lat]);
         const polyline = new (window as any).AMap.Polyline({
@@ -226,7 +278,7 @@ const MapContainer: React.FC<MapContainerProps> = ({
         map.add(polyline);
         markersRef.current.push(polyline);
       } catch (error) {
-        console.error('MapContainer: 绘制路线失败', error);
+        console.error('MapContainer: 绘制简单路线失败', error);
       }
     }
 
@@ -257,7 +309,7 @@ const MapContainer: React.FC<MapContainerProps> = ({
     } else if (validMarkers.length > 0) {
       console.log('MapContainer: 标记数量未变化，保持当前视野');
     }
-  }, [map, markers, onMarkerClick]);
+  }, [map, markers, onMarkerClick, routes, showSimplePath]);
 
   // 注意：不再自动更新 center，避免干扰用户的缩放和聚焦操作
   // center 只在地图初始化时使用
