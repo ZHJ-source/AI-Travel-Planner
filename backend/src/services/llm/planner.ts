@@ -6,19 +6,30 @@ import { TravelRequirements, RawItinerary, Event, AMapPOI } from '../../types';
  */
 export async function parseUserRequirements(input: string, customApiKey?: string, customApiUrl?: string): Promise<TravelRequirements> {
   const prompt = `
-解析以下旅行需求，提取关键信息：
+解析以下旅行需求，提取关键信息。特别注意用户的限制条件和不想去的地方：
 
 用户输入：${input}
 
-请以JSON格式返回，不要包含任何其他文字：
+请仔细提取以下信息，以JSON格式返回（不要包含任何其他文字）：
 {
   "destination": "目的地",
   "days": 天数（数字）,
   "budget": 预算金额（数字，如果没有提到则为null）,
   "travelers": 人数（数字，如果没有提到则为1）,
   "preferences": ["偏好1", "偏好2"],
-  "specialNeeds": ["特殊需求"]
+  "specialNeeds": ["特殊需求或限制条件"]
 }
+
+重要提示：
+- preferences 是用户喜欢的类型，如：美食、历史、购物、自然风光等
+- specialNeeds 是用户的限制条件，特别注意以下关键词：
+  * "不想"、"不要"、"避免"、"不去" → 提取为特殊需求
+  * "不能"、"无法"、"禁止" → 提取为特殊需求
+  * 身体限制、饮食限制、时间限制等 → 提取为特殊需求
+  
+示例：
+输入："我想去广西北海玩3天，但不想去涠洲岛，喜欢海鲜"
+输出：{"destination":"北海","days":3,"budget":null,"travelers":1,"preferences":["海鲜"],"specialNeeds":["不去涠洲岛"]}
 `;
 
   const response = await callDeepSeek(prompt, undefined, customApiKey, customApiUrl);
@@ -47,17 +58,22 @@ export async function generateItinerary(requirements: TravelRequirements, custom
 ${requirements.budget ? `- 预算：${requirements.budget}元` : ''}
 ${requirements.travelers ? `- 人数：${requirements.travelers}人` : ''}
 ${requirements.preferences && requirements.preferences.length > 0 ? `- 偏好：${requirements.preferences.join('、')}` : ''}
-${requirements.specialNeeds && requirements.specialNeeds.length > 0 ? `- 特殊需求：${requirements.specialNeeds.join('、')}` : ''}
+${requirements.specialNeeds && requirements.specialNeeds.length > 0 ? `
+⚠️ **特殊需求（必须严格遵守）**：
+${requirements.specialNeeds.map(need => `  - ${need}`).join('\n')}
+` : ''}
 
 要求：
-1. 每天安排2-4个主要事件（景点、餐厅、娱乐活动）
-2. **必须使用真实存在的地点名称，且名称要精确简洁**
+1. ${requirements.specialNeeds && requirements.specialNeeds.length > 0 ? '**首要原则：必须严格遵守上述所有特殊需求，不得安排用户明确拒绝的地点或活动**' : ''}
+2. 每天安排2-4个主要事件（景点、餐厅、娱乐活动）
+3. **必须使用真实存在的地点名称，且名称要精确简洁**
    - ✓ 正确示例：故宫、天安门、南京大牌档、秦淮河
    - ✗ 错误示例：故宫景区、天安门广场游览、南京大牌档美食店、秦淮河夜游
    - 避免添加"景区"、"夜游"、"美食街"等后缀，只写核心地点名称
-3. 安排合理的时间（使用24小时制，如 09:00）
-4. 估算每个事件的时长（分钟）和费用（元）
-5. 提供交通和住宿建议
+4. 安排合理的时间（使用24小时制，如 09:00）
+5. 估算每个事件的时长（分钟）和费用（元）
+6. 提供交通和住宿建议
+7. 优先考虑用户的偏好，确保行程符合用户期待
 
 请严格按照以下JSON格式返回，不要包含任何其他文字：
 {

@@ -6,16 +6,24 @@ import { TravelRequirements, Itinerary } from '../types';
  */
 export async function generateItinerary(
   requirements: TravelRequirements,
-  onProgress: (update: any) => void
+  onProgress: (update: any) => void,
+  input?: string
 ): Promise<void> {
   console.log('Generating itinerary with requirements:', requirements);
+  if (input) {
+    console.log('Using natural language input:', input);
+  }
+  
+  const requestBody = input 
+    ? { input } 
+    : { requirements };
   
   const response = await fetch('/api/itinerary/generate', {
     method: 'POST',
     headers: {
       'Content-Type': 'application/json',
     },
-    body: JSON.stringify({ requirements }),
+    body: JSON.stringify(requestBody),
   });
 
   console.log('Response status:', response.status);

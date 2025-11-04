@@ -42,9 +42,12 @@ export async function* generateCompleteItinerary(
     yield { step: 'finalizing', progress: 90 };
     console.log('Step 4: Finalizing...');
     
+    // 使用实际生成的天数，防止出现 "null日游"
+    const actualDays = enrichedDays.length || requirements.days || 1;
+    
     const itinerary: Itinerary = {
       userId,
-      title: `${requirements.destination}${requirements.days}日游`,
+      title: `${requirements.destination}${actualDays}日游`,
       destination: requirements.destination,
       startDate: requirements.startDate,
       days: enrichedDays,

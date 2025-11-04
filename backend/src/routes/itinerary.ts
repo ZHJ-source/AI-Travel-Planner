@@ -36,6 +36,11 @@ router.post('/generate', optionalAuthMiddleware, async (req: AuthRequest & ApiKe
     }
     
     console.log('Travel requirements:', travelReqs);
+    console.log('📋 用户需求详情:');
+    console.log('  - 目的地:', travelReqs.destination);
+    console.log('  - 天数:', travelReqs.days);
+    console.log('  - 偏好:', travelReqs.preferences || '无');
+    console.log('  - 特殊需求:', travelReqs.specialNeeds || '无');
     
     // 设置SSE响应头
     res.setHeader('Content-Type', 'text/event-stream');

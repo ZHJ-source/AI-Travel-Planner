@@ -165,12 +165,22 @@ const Planning: React.FC = () => {
   };
 
   const handleGenerate = async () => {
-    if (!requirements.destination) {
-      alert('请输入目的地');
+    // 如果有文字输入，使用文字输入；否则验证表单
+    const useTextInput = input.trim().length > 0;
+    
+    if (!useTextInput && !requirements.destination) {
+      alert('请输入目的地或使用文字描述您的需求');
       return;
     }
 
     console.log('Starting generation...');
+    console.log('使用输入方式:', useTextInput ? '文字/语音输入' : '表单输入');
+    if (useTextInput) {
+      console.log('文字输入内容:', input);
+    } else {
+      console.log('表单数据:', requirements);
+    }
+    
     setIsGenerating(true);
     setProgress(0);
     setGeneratedItinerary(null);
@@ -178,39 +188,43 @@ const Planning: React.FC = () => {
     setProgressMessage('开始生成行程...');
 
     try {
-      await generateItinerary(requirements, (update) => {
-        console.log('Progress update:', update);
+      await generateItinerary(
+        requirements, 
+        (update) => {
+          console.log('Progress update:', update);
         
-        if (update.step === 'error') {
-          console.error('Generation error:', update.error);
-          alert('生成失败: ' + update.error);
-          setIsGenerating(false);
-          return;
-        }
-        
-        setProgress(update.progress || 0);
-        setProgressMessage(getProgressMessage(update.step));
-        
-        if (update.step === 'complete' && update.data) {
-          console.log('✅ Itinerary generation complete!');
-          console.log('Itinerary data:', update.data);
-          
-          // 立即更新状态
-          setGeneratedItinerary(update.data);
-          setIsGenerating(false);
-          
-          // 初始化时默认显示第一天
-          setSelectedDay(1);
-          
-          // 🔥 关键修复：保存到sessionStorage，防止丢失
-          try {
-            sessionStorage.setItem('tempItinerary', JSON.stringify(update.data));
-            console.log('✅ Saved itinerary to sessionStorage');
-          } catch (error) {
-            console.error('Failed to save to sessionStorage:', error);
+          if (update.step === 'error') {
+            console.error('Generation error:', update.error);
+            alert('生成失败: ' + update.error);
+            setIsGenerating(false);
+            return;
           }
-        }
-      });
+          
+          setProgress(update.progress || 0);
+          setProgressMessage(getProgressMessage(update.step));
+          
+          if (update.step === 'complete' && update.data) {
+            console.log('✅ Itinerary generation complete!');
+            console.log('Itinerary data:', update.data);
+            
+            // 立即更新状态
+            setGeneratedItinerary(update.data);
+            setIsGenerating(false);
+            
+            // 初始化时默认显示第一天
+            setSelectedDay(1);
+            
+            // 🔥 关键修复：保存到sessionStorage，防止丢失
+            try {
+              sessionStorage.setItem('tempItinerary', JSON.stringify(update.data));
+              console.log('✅ Saved itinerary to sessionStorage');
+            } catch (error) {
+              console.error('Failed to save to sessionStorage:', error);
+            }
+          }
+        },
+        useTextInput ? input : undefined
+      );
     } catch (error: any) {
       console.error('Generate itinerary error:', error);
       alert('生成行程失败: ' + (error.message || '请稍后重试'));
@@ -427,6 +441,40 @@ const Planning: React.FC = () => {
                     placeholder="可选"
                   />
                 </div>
+              </div>
+
+              {/* 偏好和特殊需求 */}
+              <div className="mb-6">
+                <label className="block text-sm font-medium text-gray-700 mb-2">
+                  旅行偏好（可选）
+                </label>
+                <input
+                  type="text"
+                  value={requirements.preferences?.join('、') || ''}
+                  onChange={(e) => setRequirements({ 
+                    ...requirements, 
+                    preferences: e.target.value ? e.target.value.split(/[,，、]/).map(s => s.trim()).filter(Boolean) : []
+                  })}
+                  className="input"
+                  placeholder="如：美食、历史文化、购物、自然风光（用逗号分隔）"
+                />
+                <p className="text-xs text-gray-500 mt-1">多个偏好用逗号、顿号或中文逗号分隔</p>
+              </div>
+
+              <div className="mb-6">
+                <label className="block text-sm font-medium text-gray-700 mb-2">
+                  特殊需求（可选）
+                </label>
+                <textarea
+                  value={requirements.specialNeeds?.join('、') || ''}
+                  onChange={(e) => setRequirements({ 
+                    ...requirements, 
+                    specialNeeds: e.target.value ? e.target.value.split(/[,，、]/).map(s => s.trim()).filter(Boolean) : []
+                  })}
+                  className="input min-h-[80px]"
+                  placeholder="如：不想去涠洲岛、避免爬山、只吃清真餐厅、需要无障碍设施（用逗号分隔）"
+                />
+                <p className="text-xs text-gray-500 mt-1">填写您的限制条件或特殊要求，多个需求用逗号分隔</p>
               </div>
 
               {isGenerating ? (
