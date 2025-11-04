@@ -51,7 +51,10 @@ ${requirements.specialNeeds && requirements.specialNeeds.length > 0 ? `- 特殊�
 
 要求：
 1. 每天安排2-4个主要事件（景点、餐厅、娱乐活动）
-2. 必须使用真实存在的地点名称（景点、餐厅等）
+2. **必须使用真实存在的地点名称，且名称要精确简洁**
+   - ✓ 正确示例：故宫、天安门、南京大牌档、秦淮河
+   - ✗ 错误示例：故宫景区、天安门广场游览、南京大牌档美食店、秦淮河夜游
+   - 避免添加"景区"、"夜游"、"美食街"等后缀，只写核心地点名称
 3. 安排合理的时间（使用24小时制，如 09:00）
 4. 估算每个事件的时长（分钟）和费用（元）
 5. 提供交通和住宿建议
@@ -96,9 +99,23 @@ ${requirements.specialNeeds && requirements.specialNeeds.length > 0 ? `- 特殊�
     if (!jsonMatch) {
       throw new Error('Failed to extract JSON from response');
     }
-    return JSON.parse(jsonMatch[0]);
+    const itinerary = JSON.parse(jsonMatch[0]);
+    
+    console.log('\n========== LLM生成的原始行程 ==========');
+    console.log(`天数: ${itinerary.days?.length || 0}`);
+    itinerary.days?.forEach((day: any, idx: number) => {
+      console.log(`\n第${idx + 1}天 (${day.date}):`);
+      day.events?.forEach((event: any, eventIdx: number) => {
+        console.log(`  ${eventIdx + 1}. ${event.name} (${event.type})`);
+        console.log(`     时间: ${event.time}, 时长: ${event.estimatedDuration}分钟, 费用: ${event.estimatedCost}元`);
+      });
+    });
+    console.log('=====================================\n');
+    
+    return itinerary;
   } catch (error) {
     console.error('Failed to parse itinerary:', error);
+    console.error('Raw response:', response);
     throw new Error('Failed to generate itinerary');
   }
 }

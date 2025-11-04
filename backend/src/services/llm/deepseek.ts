@@ -45,7 +45,7 @@ export async function callDeepSeek(
       {
         model: 'deepseek-chat',
         messages,
-        temperature: 0.7,
+        temperature: 0.3, // 降低温度以提高地点名称准确性
       },
       {
         headers: {
@@ -97,7 +97,7 @@ export async function callDeepSeekStream(
       body: JSON.stringify({
         model: 'deepseek-chat',
         messages,
-        temperature: 0.7,
+        temperature: 0.3, // 降低温度以提高地点名称准确性
         stream: true,
       }),
     });

@@ -27,6 +27,8 @@ export async function searchPlace(
       return [];
     }
 
+    console.log(`      [高德地图] 搜索: "${keywords}" in ${city}`);
+
     const response = await axios.get<AMapSearchResponse>(
       'https://restapi.amap.com/v3/place/text',
       {
@@ -40,26 +42,36 @@ export async function searchPlace(
       }
     );
 
+    console.log(`      [高德地图] 响应状态: ${response.data.status}, 结果数: ${response.data.count}`);
+
     if (response.data.status === '1' && response.data.pois) {
+      if (response.data.pois.length > 0) {
+        console.log(`      [高德地图] 找到 ${response.data.pois.length} 个结果:`);
+        response.data.pois.slice(0, 3).forEach((poi, idx) => {
+          console.log(`        ${idx + 1}. ${poi.name} - ${poi.address}`);
+        });
+      }
       return response.data.pois;
     }
     
+    console.log(`      [高德地图] 无结果: ${response.data.info}`);
     return [];
   } catch (error) {
-    console.error('AMap search error:', error);
+    console.error('      [高德地图] 搜索错误:', error);
     return [];
   }
 }
 
 /**
- * 验证地点是否存在
+ * 验证地点是否存在（支持模糊搜索和重试）
  */
 export async function validateLocation(
   name: string,
   city: string,
   customApiKey?: string
-): Promise<{ valid: boolean; poi?: AMapPOI }> {
-  const pois = await searchPlace(name, city, customApiKey);
+): Promise<{ valid: boolean; poi?: AMapPOI; message?: string }> {
+  // 策略1: 精确搜索原始名称
+  let pois = await searchPlace(name, city, customApiKey);
   
   if (pois.length > 0) {
     return {
@@ -68,9 +80,65 @@ export async function validateLocation(
     };
   }
   
+  // 策略2: 如果精确搜索失败，尝试模糊搜索
+  // 去掉常见的后缀词进行二次搜索
+  const suffixesToRemove = [
+    '景区', '风景区', '旅游区', '公园',
+    '夜游', '游船', '游览',
+    '美食街', '步行街', '商圈', '广场',
+    '纪念馆', '博物馆', '展览馆',
+    '店', '馆'
+  ];
+  
+  let fuzzyName = name;
+  for (const suffix of suffixesToRemove) {
+    if (name.endsWith(suffix)) {
+      fuzzyName = name.substring(0, name.length - suffix.length);
+      console.log(`      [模糊搜索] 尝试去掉后缀"${suffix}": "${fuzzyName}"`);
+      
+      // 添加短暂延迟避免API限流
+      await sleep(200);
+      
+      pois = await searchPlace(fuzzyName, city, customApiKey);
+      if (pois.length > 0) {
+        console.log(`      [模糊搜索] 成功找到: ${pois[0].name}`);
+        return {
+          valid: true,
+          poi: pois[0]
+        };
+      }
+      break; // 只尝试去掉一个后缀
+    }
+  }
+  
+  // 策略3: 尝试提取关键词（取前几个字）
+  if (name.length > 4) {
+    const shortName = name.substring(0, Math.min(4, name.length));
+    console.log(`      [模糊搜索] 尝试关键词: "${shortName}"`);
+    
+    await sleep(200);
+    
+    pois = await searchPlace(shortName, city, customApiKey);
+    if (pois.length > 0) {
+      console.log(`      [模糊搜索] 成功找到: ${pois[0].name}`);
+      return {
+        valid: true,
+        poi: pois[0]
+      };
+    }
+  }
+  
   return {
-    valid: false
+    valid: false,
+    message: `在城市"${city}"中未找到地点"${name}"（已尝试模糊搜索）`
   };
+}
+
+/**
+ * 延迟函数，用于避免API限流
+ */
+function sleep(ms: number): Promise<void> {
+  return new Promise(resolve => setTimeout(resolve, ms));
 }
 
 /**
