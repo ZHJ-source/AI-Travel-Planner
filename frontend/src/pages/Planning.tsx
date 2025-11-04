@@ -7,6 +7,7 @@ import ItineraryView from '../components/ItineraryView';
 import { Itinerary, TravelRequirements, Marker } from '../types';
 import { generateItinerary, saveItinerary } from '../services/itinerary';
 import { useAuthStore } from '../stores/authStore';
+import { isChineseCity, normalizeCityName } from '../config/cities';
 
 const Planning: React.FC = () => {
   const navigate = useNavigate();
@@ -165,21 +166,38 @@ const Planning: React.FC = () => {
   };
 
   const handleGenerate = async () => {
-    // 如果有文字输入，使用文字输入；否则验证表单
-    const useTextInput = input.trim().length > 0;
-    
-    if (!useTextInput && !requirements.destination) {
-      alert('请输入目的地或使用文字描述您的需求');
+    // 验证表单（必填项）
+    if (!requirements.destination) {
+      alert('❌ 请填写目的地');
       return;
     }
 
-    console.log('Starting generation...');
-    console.log('使用输入方式:', useTextInput ? '文字/语音输入' : '表单输入');
-    if (useTextInput) {
-      console.log('文字输入内容:', input);
-    } else {
-      console.log('表单数据:', requirements);
+    // 验证天数必须是有效数字
+    const days = parseInt(String(requirements.days));
+    if (isNaN(days) || days < 1 || days > 30) {
+      alert('❌ 请输入有效的天数（1-30天）');
+      return;
     }
+
+    // 验证目的地必须是国内城市
+    if (!isChineseCity(requirements.destination)) {
+      alert('⚠️ 目的地必须是中国大陆城市\n\n由于本系统使用高德地图API，目前仅支持中国大陆地区的旅行规划。\n\n请输入国内城市，如：北京、上海、杭州、成都、西安等。');
+      return;
+    }
+
+    // 标准化城市名称
+    const normalizedCity = normalizeCityName(requirements.destination);
+    if (normalizedCity !== requirements.destination) {
+      console.log(`城市名称已标准化: ${requirements.destination} -> ${normalizedCity}`);
+      setRequirements({ ...requirements, destination: normalizedCity });
+    }
+    
+    console.log('表单数据:', requirements);
+    if (input.trim()) {
+      console.log('补充说明:', input);
+    }
+
+    console.log('Starting generation...');
     
     setIsGenerating(true);
     setProgress(0);
@@ -223,11 +241,20 @@ const Planning: React.FC = () => {
             }
           }
         },
-        useTextInput ? input : undefined
+        input.trim() || undefined  // 传递补充说明（如果有的话）
       );
     } catch (error: any) {
       console.error('Generate itinerary error:', error);
-      alert('生成行程失败: ' + (error.message || '请稍后重试'));
+      
+      // 提取错误信息
+      let errorMessage = error.message || '生成行程失败，请稍后重试';
+      
+      // 如果是网络错误，提供更明确的提示
+      if (errorMessage.includes('Failed to fetch') || errorMessage.includes('NetworkError')) {
+        errorMessage = '网络连接失败，请检查网络连接后重试';
+      }
+      
+      alert('❌ ' + errorMessage);
       setIsGenerating(false);
     }
   };
@@ -374,34 +401,48 @@ const Planning: React.FC = () => {
                 <VoiceInput onTranscript={handleVoiceTranscript} />
               </div>
 
-              {/* 文字输入 */}
+              {/* 补充说明文字输入 */}
               <div className="mb-6">
                 <label htmlFor="input" className="block text-sm font-medium text-gray-700 mb-2">
-                  或者直接输入您的旅行需求
+                  补充说明（可选）
                 </label>
                 <textarea
                   id="input"
                   value={input}
                   onChange={(e) => setInput(e.target.value)}
-                  className="input min-h-[100px]"
-                  placeholder="例如：我想去日本，5天，预算1万元，喜欢美食和动漫，带孩子"
+                  className="input min-h-[80px]"
+                  placeholder="例如：主要吃东西、不想爬山、喜欢历史文化、需要带孩子等特殊需求和偏好"
                 />
+                <p className="text-xs text-gray-500 mt-1">
+                  这里可以填写您的旅行偏好、特殊需求或限制条件，系统会结合下方表单生成个性化行程
+                </p>
+              </div>
+
+              {/* 分割线 */}
+              <div className="relative mb-6">
+                <div className="absolute inset-0 flex items-center">
+                  <div className="w-full border-t border-gray-300"></div>
+                </div>
+                <div className="relative flex justify-center text-sm">
+                  <span className="px-2 bg-white text-gray-500">基础信息（必填）</span>
+                </div>
               </div>
 
               {/* 结构化输入 */}
               <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-6">
                 <div>
                   <label className="block text-sm font-medium text-gray-700 mb-2">
-                    目的地 *
+                    目的地 * （仅支持国内城市）
                   </label>
                   <input
                     type="text"
                     value={requirements.destination}
                     onChange={(e) => setRequirements({ ...requirements, destination: e.target.value })}
                     className="input"
-                    placeholder="如：东京、巴黎"
+                    placeholder="如：北京、上海、杭州、成都"
                     required
                   />
+                  <p className="text-xs text-gray-500 mt-1">由于使用高德地图，目前仅支持中国大陆城市</p>
                 </div>
                 <div>
                   <label className="block text-sm font-medium text-gray-700 mb-2">

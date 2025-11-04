@@ -131,6 +131,7 @@ async function validateItineraryDays(
       } else {
         console.log(`    ✗ 验证失败 - 地点在高德地图中未找到`);
         console.log(`      原因: ${validation.message || '未知'}`);
+        console.log(`      提示: 该地点可能不存在或位于国外（高德地图仅支持中国大陆地区）`);
       }
     }
     
@@ -152,6 +153,11 @@ async function validateItineraryDays(
   console.log(`原始天数: ${days.length}`);
   console.log(`最终天数: ${validatedDays.length}`);
   console.log(`丢失天数: ${days.length - validatedDays.length}`);
+  
+  // 如果所有地点验证都失败，抛出错误
+  if (validatedDays.length === 0) {
+    throw new Error(`❌ 所有地点验证失败！\n\n可能原因：\n1. 目的地"${city}"可能不是中国大陆城市\n2. 生成的地点名称不准确\n3. 高德地图API暂时不可用\n\n建议：\n- 请确认目的地是中国大陆城市（如：北京、上海、杭州等）\n- 重新尝试生成行程\n- 如果问题持续，请联系技术支持`);
+  }
   
   return validatedDays;
 }

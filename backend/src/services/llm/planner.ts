@@ -12,24 +12,34 @@ export async function parseUserRequirements(input: string, customApiKey?: string
 
 请仔细提取以下信息，以JSON格式返回（不要包含任何其他文字）：
 {
-  "destination": "目的地",
-  "days": 天数（数字）,
+  "destination": "目的地城市名",
+  "days": 天数（必须是数字，如果用户没有明确说明，请根据常识判断，默认5）,
   "budget": 预算金额（数字，如果没有提到则为null）,
   "travelers": 人数（数字，如果没有提到则为1）,
   "preferences": ["偏好1", "偏好2"],
   "specialNeeds": ["特殊需求或限制条件"]
 }
 
-重要提示：
-- preferences 是用户喜欢的类型，如：美食、历史、购物、自然风光等
-- specialNeeds 是用户的限制条件，特别注意以下关键词：
-  * "不想"、"不要"、"避免"、"不去" → 提取为特殊需求
-  * "不能"、"无法"、"禁止" → 提取为特殊需求
-  * 身体限制、饮食限制、时间限制等 → 提取为特殊需求
+⚠️ 特别注意：
+1. **destination** 必须是具体的城市名（如：北京、杭州、成都），不要包含"市"字
+2. **days** 必须是数字，常见天数：周末游2-3天，短途游3-5天，长途游7天以上
+3. **preferences** 是用户喜欢的类型，如：美食、历史、购物、自然风光等
+4. **specialNeeds** 是用户的限制条件，特别注意以下关键词：
+   * "不想"、"不要"、"避免"、"不去" → 提取为特殊需求
+   * "不能"、"无法"、"禁止" → 提取为特殊需求
+   * 身体限制、饮食限制、时间限制等 → 提取为特殊需求
   
-示例：
+示例1：
 输入："我想去广西北海玩3天，但不想去涠洲岛，喜欢海鲜"
 输出：{"destination":"北海","days":3,"budget":null,"travelers":1,"preferences":["海鲜"],"specialNeeds":["不去涠洲岛"]}
+
+示例2：
+输入："周末想去杭州逛逛"
+输出：{"destination":"杭州","days":2,"budget":null,"travelers":1,"preferences":[],"specialNeeds":[]}
+
+示例3：
+输入："想去成都，喜欢美食"
+输出：{"destination":"成都","days":5,"budget":null,"travelers":1,"preferences":["美食"],"specialNeeds":[]}
 `;
 
   const response = await callDeepSeek(prompt, undefined, customApiKey, customApiUrl);
@@ -40,10 +50,37 @@ export async function parseUserRequirements(input: string, customApiKey?: string
     if (!jsonMatch) {
       throw new Error('Failed to extract JSON from response');
     }
-    return JSON.parse(jsonMatch[0]);
-  } catch (error) {
+    const parsed = JSON.parse(jsonMatch[0]);
+    
+    // 确保关键字段有默认值
+    if (!parsed.days || isNaN(parseInt(String(parsed.days)))) {
+      console.warn('天数未解析或无效，使用默认值 5');
+      parsed.days = 5; // 默认5天
+    } else {
+      parsed.days = parseInt(String(parsed.days));
+    }
+    
+    if (!parsed.travelers || isNaN(parseInt(String(parsed.travelers)))) {
+      parsed.travelers = 1; // 默认1人
+    } else {
+      parsed.travelers = parseInt(String(parsed.travelers));
+    }
+    
+    if (!parsed.destination || typeof parsed.destination !== 'string') {
+      throw new Error('无法从您的描述中识别出目的地。请确保描述中包含明确的目的地城市名称（如：北京、杭州、成都等）。');
+    }
+    
+    console.log('✅ 需求解析成功:', parsed);
+    return parsed;
+  } catch (error: any) {
     console.error('Failed to parse requirements:', error);
-    throw new Error('Failed to parse travel requirements');
+    
+    // 提供更友好的错误信息
+    if (error.message?.includes('目的地')) {
+      throw error; // 保留具体的错误信息
+    }
+    
+    throw new Error(`无法理解您的旅行需求描述。请确保包含以下信息：\n• 目的地（必须）：如"去杭州"、"想去成都"\n• 天数（可选）：如"3天"、"一周"\n\n您的输入："${input}"\n\n建议：使用更完整的描述，例如"我想去杭州玩3天，喜欢美食"`);
   }
 }
 

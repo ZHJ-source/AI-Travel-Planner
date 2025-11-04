@@ -129,7 +129,7 @@ export async function validateLocation(
   
   return {
     valid: false,
-    message: `在城市"${city}"中未找到地点"${name}"（已尝试模糊搜索）`
+    message: `在城市"${city}"中未找到地点"${name}"。可能原因：1) 地点不存在；2) 地点位于国外（高德地图仅支持中国大陆）；3) 地点名称不准确。建议：请确认地点名称或选择其他地点。`
   };
 }
 

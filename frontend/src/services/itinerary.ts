@@ -7,16 +7,18 @@ import { TravelRequirements, Itinerary } from '../types';
 export async function generateItinerary(
   requirements: TravelRequirements,
   onProgress: (update: any) => void,
-  input?: string
+  additionalInput?: string
 ): Promise<void> {
   console.log('Generating itinerary with requirements:', requirements);
-  if (input) {
-    console.log('Using natural language input:', input);
+  if (additionalInput) {
+    console.log('Additional preferences/notes:', additionalInput);
   }
   
-  const requestBody = input 
-    ? { input } 
-    : { requirements };
+  // 混合模式：始终发送表单数据，如果有补充说明也一起发送
+  const requestBody: any = { requirements };
+  if (additionalInput) {
+    requestBody.additionalInput = additionalInput;
+  }
   
   const response = await fetch('/api/itinerary/generate', {
     method: 'POST',
@@ -31,7 +33,16 @@ export async function generateItinerary(
   if (!response.ok) {
     const errorText = await response.text();
     console.error('Response error:', errorText);
-    throw new Error(`Failed to generate itinerary: ${response.status} ${errorText}`);
+    
+    // 尝试解析JSON错误信息
+    try {
+      const errorData = JSON.parse(errorText);
+      const errorMessage = errorData.message || errorData.error || '生成行程失败';
+      throw new Error(errorMessage);
+    } catch (parseError) {
+      // 如果无法解析JSON，使用原始错误文本
+      throw new Error(`生成行程失败: ${errorText}`);
+    }
   }
 
   const reader = response.body?.getReader();
