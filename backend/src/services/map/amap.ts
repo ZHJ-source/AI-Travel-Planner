@@ -360,11 +360,83 @@ export async function getDrivingRoute(
 }
 
 /**
+ * 获取公交路线规划
+ */
+export async function getTransitRoute(
+  origin: string,
+  destination: string,
+  city: string,
+  customApiKey?: string
+): Promise<RouteResult | null> {
+  try {
+    const apiKey = apiKeyManager.getKey('AMAP_WEB_API_KEY', customApiKey);
+    
+    if (!apiKey) {
+      console.error('AMap API Key not configured');
+      return null;
+    }
+
+    console.log(`[高德地图] 公交路线规划: ${origin} -> ${destination}`);
+
+    const response = await axios.get(
+      'https://restapi.amap.com/v3/direction/transit/integrated',
+      {
+        params: {
+          key: apiKey,
+          origin,
+          destination,
+          city,
+          output: 'json',
+        }
+      }
+    );
+
+    if (response.data.status === '1' && response.data.route?.transits?.length > 0) {
+      const transit = response.data.route.transits[0];
+      
+      // 解析路径坐标
+      const pathCoords: Array<{ lng: number; lat: number }> = [];
+      if (transit.segments) {
+        transit.segments.forEach((segment: any) => {
+          if (segment.walking?.steps) {
+            segment.walking.steps.forEach((step: any) => {
+              if (step.polyline) {
+                const coords = step.polyline.split(';');
+                coords.forEach((coord: string) => {
+                  const [lng, lat] = coord.split(',').map(parseFloat);
+                  if (!isNaN(lng) && !isNaN(lat)) {
+                    pathCoords.push({ lng, lat });
+                  }
+                });
+              }
+            });
+          }
+        });
+      }
+      
+      return {
+        distance: parseInt(transit.distance),
+        duration: parseInt(transit.duration),
+        strategy: '公交',
+        steps: transit.segments,
+        path: pathCoords,
+      };
+    }
+    
+    return null;
+  } catch (error) {
+    console.error('[高德地图] 公交路线规划错误:', error);
+    return null;
+  }
+}
+
+/**
  * 批量路线规划（多个地点之间）
  */
 export async function batchRoutes(
   locations: Array<{ lng: number; lat: number }>,
-  mode: 'walking' | 'driving' = 'walking',
+  mode: 'walking' | 'driving' | 'transit' = 'walking',
+  city?: string,
   customApiKey?: string
 ): Promise<RouteResult[]> {
   const routes: RouteResult[] = [];
@@ -373,9 +445,15 @@ export async function batchRoutes(
     const origin = `${locations[i].lng},${locations[i].lat}`;
     const destination = `${locations[i + 1].lng},${locations[i + 1].lat}`;
     
-    const route = mode === 'walking'
-      ? await getWalkingRoute(origin, destination, customApiKey)
-      : await getDrivingRoute(origin, destination, customApiKey);
+    let route: RouteResult | null = null;
+    
+    if (mode === 'walking') {
+      route = await getWalkingRoute(origin, destination, customApiKey);
+    } else if (mode === 'driving') {
+      route = await getDrivingRoute(origin, destination, customApiKey);
+    } else if (mode === 'transit' && city) {
+      route = await getTransitRoute(origin, destination, city, customApiKey);
+    }
     
     if (route) {
       routes.push(route);

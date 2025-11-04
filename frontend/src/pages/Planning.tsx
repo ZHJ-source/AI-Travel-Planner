@@ -28,16 +28,45 @@ const Planning: React.FC = () => {
   const [selectedDay, setSelectedDay] = useState<number>(1); // 当前选择的天数
   const [focusLocation, setFocusLocation] = useState<{ lat: number; lng: number } | null>(null); // 需要聚焦的位置
   
-  // 监听全局错误
+  // 监听全局错误（仅捕获关键错误）
   React.useEffect(() => {
     const handleError = (event: ErrorEvent) => {
+      // 过滤掉非关键错误
+      const errorMsg = event.error?.message || '';
+      
+      // 忽略某些已知的非关键错误
+      const ignoredErrors = [
+        'ResizeObserver', // ResizeObserver相关错误
+        'Load failed', // 某些资源加载失败（不影响核心功能）
+        'Script error', // 跨域脚本错误
+        'AMap', // 地图相关的非关键错误
+      ];
+      
+      const shouldIgnore = ignoredErrors.some(pattern => 
+        errorMsg.includes(pattern)
+      );
+      
+      if (shouldIgnore) {
+        console.warn('Ignored non-critical error:', errorMsg);
+        return;
+      }
+      
       console.error('Global error caught:', event.error);
-      setRenderError(`页面错误: ${event.error?.message || '未知错误'}`);
+      setRenderError(`页面错误: ${errorMsg || '未知错误'}`);
     };
 
     const handleUnhandledRejection = (event: PromiseRejectionEvent) => {
       console.error('Unhandled promise rejection:', event.reason);
-      setRenderError(`异步错误: ${event.reason?.message || event.reason || '未知错误'}`);
+      
+      // 只有真正影响功能的异步错误才显示
+      const reasonMsg = event.reason?.message || String(event.reason) || '';
+      
+      // 检查是否是API错误
+      if (reasonMsg.includes('Failed to fetch') || reasonMsg.includes('Network')) {
+        setRenderError(`网络错误: ${reasonMsg}`);
+      } else if (reasonMsg && !reasonMsg.includes('undefined')) {
+        setRenderError(`异步错误: ${reasonMsg}`);
+      }
     };
 
     window.addEventListener('error', handleError);

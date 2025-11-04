@@ -5,6 +5,7 @@ import MapContainer from '../components/MapContainer';
 import ItineraryView from '../components/ItineraryView';
 import EditableItineraryDay from '../components/EditableItineraryDay';
 import MapSearch from '../components/MapSearch';
+import CostAnalysis from '../components/CostAnalysis';
 import { Itinerary, Marker, Event } from '../types';
 import { getItinerary, deleteItinerary, updateItinerary } from '../services/itinerary';
 import { POI, batchRoutes, RouteInfo } from '../services/location';
@@ -25,6 +26,8 @@ const ItineraryDetail: React.FC = () => {
   const [isCalculatingRoute, setIsCalculatingRoute] = useState(false);
   const [showMapSearch, setShowMapSearch] = useState(false);
   const [hasUnsavedChanges, setHasUnsavedChanges] = useState(false);
+  const [routeMode, setRouteMode] = useState<'walking' | 'driving' | 'transit'>('walking');
+  const [showRoutes, setShowRoutes] = useState(true);
 
   // 加载行程数据
   useEffect(() => {
@@ -82,9 +85,9 @@ const ItineraryDetail: React.FC = () => {
     setMarkers(newMarkers);
   }, [itinerary, selectedDay]);
 
-  // 当标记变化时，重新计算路线
+  // 当标记变化或路线模式变化时，重新计算路线
   useEffect(() => {
-    if (!isEditMode || markers.length < 2) {
+    if (!showRoutes || markers.length < 2) {
       setRoutes([]);
       return;
     }
@@ -93,7 +96,8 @@ const ItineraryDetail: React.FC = () => {
       setIsCalculatingRoute(true);
       try {
         const locations = markers.map(m => ({ lng: m.position.lng, lat: m.position.lat }));
-        const calculatedRoutes = await batchRoutes(locations, 'walking');
+        const city = itinerary?.destination;
+        const calculatedRoutes = await batchRoutes(locations, routeMode, city);
         setRoutes(calculatedRoutes);
         console.log('✅ 路线计算完成:', calculatedRoutes);
       } catch (error) {
@@ -106,7 +110,7 @@ const ItineraryDetail: React.FC = () => {
     // 延迟计算，避免频繁调用
     const timer = setTimeout(calculateRoutes, 500);
     return () => clearTimeout(timer);
-  }, [markers, isEditMode]);
+  }, [markers, routeMode, showRoutes, itinerary?.destination]);
 
   // 处理点击地点事件
   const handleLocationClick = (lat: number, lng: number) => {
@@ -250,6 +254,8 @@ const ItineraryDetail: React.FC = () => {
         <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
           {/* 左侧：行程详情 */}
           <div className="lg:col-span-2 space-y-6">
+            {/* 开销分析 */}
+            <CostAnalysis itinerary={itinerary} />
             {/* 头部操作栏 */}
             <div className="flex justify-between items-center">
               <div>
@@ -378,6 +384,57 @@ const ItineraryDetail: React.FC = () => {
 
               {/* 地图 */}
               <div className="bg-white rounded-lg shadow-md overflow-hidden">
+                {/* 路线控制栏 */}
+                <div className="border-b border-gray-200 p-3 bg-gray-50">
+                  <div className="flex items-center justify-between mb-2">
+                    <h4 className="font-semibold text-sm text-gray-700">路线规划</h4>
+                    <button
+                      onClick={() => setShowRoutes(!showRoutes)}
+                      className={`px-3 py-1 text-xs rounded-lg transition-colors ${
+                        showRoutes
+                          ? 'bg-blue-600 text-white'
+                          : 'bg-gray-200 text-gray-700 hover:bg-gray-300'
+                      }`}
+                    >
+                      {showRoutes ? '✓ 显示路线' : '隐藏路线'}
+                    </button>
+                  </div>
+                  {showRoutes && (
+                    <div className="flex gap-2">
+                      <button
+                        onClick={() => setRouteMode('walking')}
+                        className={`flex-1 px-3 py-2 text-sm rounded-lg transition-colors ${
+                          routeMode === 'walking'
+                            ? 'bg-blue-600 text-white shadow-md'
+                            : 'bg-white text-gray-700 hover:bg-gray-100 border border-gray-300'
+                        }`}
+                      >
+                        🚶 步行
+                      </button>
+                      <button
+                        onClick={() => setRouteMode('transit')}
+                        className={`flex-1 px-3 py-2 text-sm rounded-lg transition-colors ${
+                          routeMode === 'transit'
+                            ? 'bg-blue-600 text-white shadow-md'
+                            : 'bg-white text-gray-700 hover:bg-gray-100 border border-gray-300'
+                        }`}
+                      >
+                        🚌 公交
+                      </button>
+                      <button
+                        onClick={() => setRouteMode('driving')}
+                        className={`flex-1 px-3 py-2 text-sm rounded-lg transition-colors ${
+                          routeMode === 'driving'
+                            ? 'bg-blue-600 text-white shadow-md'
+                            : 'bg-white text-gray-700 hover:bg-gray-100 border border-gray-300'
+                        }`}
+                      >
+                        🚗 驾车
+                      </button>
+                    </div>
+                  )}
+                </div>
+
                 {isCalculatingRoute && (
                   <div className="bg-blue-50 border-b border-blue-200 px-4 py-2 text-sm text-blue-700 flex items-center gap-2">
                     <div className="w-4 h-4 border-2 border-blue-600 border-t-transparent rounded-full animate-spin"></div>
@@ -389,30 +446,41 @@ const ItineraryDetail: React.FC = () => {
                     markers={markers} 
                     focusLocation={focusLocation}
                     routes={routes}
-                    showSimplePath={!isEditMode}
+                    showSimplePath={false}
                   />
                 </div>
                 {/* 路线信息 */}
-                {routes.length > 0 && (
-                  <div className="border-t border-gray-200 p-3 bg-gray-50">
-                    <h4 className="text-sm font-semibold mb-2">路线信息</h4>
-                    <div className="space-y-1 text-xs text-gray-600">
-                      <div className="flex justify-between">
-                        <span>总距离：</span>
-                        <span className="font-medium">
-                          {(routes.reduce((sum, r) => sum + r.distance, 0) / 1000).toFixed(1)} km
-                        </span>
+                {routes.length > 0 && showRoutes && (
+                  <div className="border-t border-gray-200 p-4 bg-gradient-to-br from-blue-50 to-indigo-50">
+                    <h4 className="text-sm font-semibold mb-3 text-gray-800 flex items-center gap-2">
+                      <svg className="w-4 h-4 text-blue-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 20l-5.447-2.724A1 1 0 013 16.382V5.618a1 1 0 011.447-.894L9 7m0 13l6-3m-6 3V7m6 10l4.553 2.276A1 1 0 0021 18.382V7.618a1 1 0 00-.553-.894L15 4m0 13V4m0 0L9 7" />
+                      </svg>
+                      路线统计
+                    </h4>
+                    <div className="grid grid-cols-2 gap-3">
+                      <div className="bg-white rounded-lg p-3 shadow-sm">
+                        <div className="text-xs text-gray-500 mb-1">总距离</div>
+                        <div className="text-lg font-bold text-blue-600">
+                          {(routes.reduce((sum, r) => sum + r.distance, 0) / 1000).toFixed(1)} 
+                          <span className="text-sm font-normal ml-1">km</span>
+                        </div>
                       </div>
-                      <div className="flex justify-between">
-                        <span>预计时间：</span>
-                        <span className="font-medium">
-                          {Math.round(routes.reduce((sum, r) => sum + r.duration, 0) / 60)} 分钟
-                        </span>
+                      <div className="bg-white rounded-lg p-3 shadow-sm">
+                        <div className="text-xs text-gray-500 mb-1">预计时间</div>
+                        <div className="text-lg font-bold text-green-600">
+                          {Math.round(routes.reduce((sum, r) => sum + r.duration, 0) / 60)}
+                          <span className="text-sm font-normal ml-1">分钟</span>
+                        </div>
                       </div>
-                      <div className="flex justify-between">
-                        <span>方式：</span>
-                        <span className="font-medium">步行</span>
-                      </div>
+                    </div>
+                    <div className="mt-3 text-xs text-gray-600 bg-white rounded-lg p-2 flex items-center gap-2">
+                      <span className="font-medium">出行方式：</span>
+                      <span className="px-2 py-1 bg-blue-100 text-blue-700 rounded">
+                        {routeMode === 'walking' && '🚶 步行'}
+                        {routeMode === 'transit' && '🚌 公交'}
+                        {routeMode === 'driving' && '🚗 驾车'}
+                      </span>
                     </div>
                   </div>
                 )}

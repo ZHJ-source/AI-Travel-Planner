@@ -5,6 +5,7 @@ import {
   searchNearbyPOI,
   getWalkingRoute,
   getDrivingRoute,
+  getTransitRoute,
   batchRoutes
 } from '../services/map/amap';
 
@@ -82,16 +83,26 @@ router.get('/nearby', async (req: Request, res: Response) => {
  */
 router.post('/route', async (req: Request, res: Response) => {
   try {
-    const { origin, destination, mode } = req.body;
+    const { origin, destination, mode, city } = req.body;
     
     if (!origin || !destination) {
       res.status(400).json({ error: 'Origin and destination are required' });
       return;
     }
     
-    const route = mode === 'driving'
-      ? await getDrivingRoute(origin, destination)
-      : await getWalkingRoute(origin, destination);
+    let route;
+    
+    if (mode === 'driving') {
+      route = await getDrivingRoute(origin, destination);
+    } else if (mode === 'transit') {
+      if (!city) {
+        res.status(400).json({ error: 'City is required for transit mode' });
+        return;
+      }
+      route = await getTransitRoute(origin, destination, city);
+    } else {
+      route = await getWalkingRoute(origin, destination);
+    }
     
     if (!route) {
       res.status(404).json({ error: 'Route not found' });
@@ -110,14 +121,19 @@ router.post('/route', async (req: Request, res: Response) => {
  */
 router.post('/routes/batch', async (req: Request, res: Response) => {
   try {
-    const { locations, mode } = req.body;
+    const { locations, mode, city } = req.body;
     
     if (!locations || !Array.isArray(locations) || locations.length < 2) {
       res.status(400).json({ error: 'At least 2 locations are required' });
       return;
     }
     
-    const routes = await batchRoutes(locations, mode || 'walking');
+    if (mode === 'transit' && !city) {
+      res.status(400).json({ error: 'City is required for transit mode' });
+      return;
+    }
+    
+    const routes = await batchRoutes(locations, mode || 'walking', city);
     
     res.json({ routes });
   } catch (error) {

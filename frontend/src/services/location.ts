@@ -52,12 +52,14 @@ export async function getRoute(
  */
 export async function batchRoutes(
   locations: Array<{ lng: number; lat: number }>,
-  mode: 'walking' | 'driving' = 'walking'
+  mode: 'walking' | 'driving' | 'transit' = 'walking',
+  city?: string
 ): Promise<RouteInfo[]> {
   try {
     const response = await api.post('/api/location/routes/batch', {
       locations,
       mode,
+      city,
     });
     return response.data.routes || [];
   } catch (error) {
