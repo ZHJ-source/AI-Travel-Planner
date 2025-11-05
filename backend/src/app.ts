@@ -18,17 +18,17 @@ app.use(express.json());
 app.use(morgan('dev'));
 app.use(extractApiKeys);
 
-// 健康检查
-app.get('/health', (req, res) => {
-  res.json({ status: 'ok', timestamp: new Date().toISOString() });
-});
-
 // 路由
 app.use('/api/auth', authRoutes);
 app.use('/api/itinerary', itineraryRoutes);
 app.use('/api/location', locationRoutes);
 app.use('/api/test', testRoutes);
 app.use('/api/config', configRoutes);
+
+// 健康检查
+app.get('/api/health', (req, res) => {
+  res.json({ status: 'ok', timestamp: new Date().toISOString() });
+});
 
 // 错误处理
 app.use(errorHandler);

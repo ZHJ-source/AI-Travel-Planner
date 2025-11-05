@@ -1,291 +1,318 @@
-# 🌏 AI 旅行规划师
+# 🌍 AI Travel Planner
 
-基于多 Agent 协同的智能旅行行程规划系统，使用 DeepSeek AI 生成个性化旅行计划。
-
-## 项目简介
-
-### 核心功能
-- 🤖 AI 自然语言行程生成
-- 🗺️ 高德地图地点验证和展示
-- 🎤 语音输入支持
-- 💾 行程保存和管理
-- 🔐 用户认证系统
-
-### 技术栈
-- **前端**：React 18 + TypeScript + TailwindCSS + Vite
-- **后端**：Node.js + Express + TypeScript
-- **AI 服务**：DeepSeek API
-- **地图服务**：高德地图 API
-- **数据库**：Supabase (PostgreSQL)
-
-### Agent 架构
-- **LLM Agent**：解析需求、生成行程
-- **Map Agent**：地点验证、POI 搜索
-- **Validator Agent**：过滤 AI 幻觉内容
+智能旅行规划助手 - 基于 AI 的个性化旅行行程规划系统
 
 ---
 
-## 🔑 API Keys 配置
-
-### 需要的 API Keys（共 7 个配置项）
-
-| API Key | 用途 | 获取地址 |
-|---------|------|----------|
-| DeepSeek API Key | AI 生成行程 | [platform.deepseek.com](https://platform.deepseek.com/api_keys) |
-| 高德 Web API Key | 后端地点搜索 | [console.amap.com](https://console.amap.com) 选择"Web服务" |
-| 高德 JS API Key | 前端地图显示 | [console.amap.com](https://console.amap.com) 选择"Web端(JS API)" |
-| Supabase URL | 数据库连接 | [supabase.com](https://supabase.com) → 项目 → Settings → API |
-| Supabase Anon Key | 前端认证 | Supabase → Settings → API → `anon` `public` |
-| Supabase Service Key | 后端管理 | Supabase → Settings → API → `service_role` `secret` |
-
-⚠️ **注意**：高德地图需要申请**两个不同类型**的 Key（Web服务 + JS API）
-
----
-
-## 🚀 部署方式一：源码部署
-
-### 1. 克隆代码
-```bash
-git clone https://github.com/YOUR_USERNAME/AI-Travel-Planner.git
-cd AI-Travel-Planner
-```
-
-### 2. 初始化数据库
-
-**`backend/supabase-schema.sql` 的作用**：创建应用所需的数据库表结构（`itineraries` 行程表、`user_profiles` 用户表）及安全策略。
-
-**操作步骤**：
-1. 登录 [Supabase Dashboard](https://supabase.com/dashboard)
-2. 创建新项目
-3. 进入 **SQL Editor** → **New Query**
-4. 复制 `backend/supabase-schema.sql` 的全部内容并执行
-5. 在 **Table Editor** 中确认 `itineraries` 和 `user_profiles` 表已创建
-
-### 3. 配置环境变量
-
-**后端** `backend/.env`：
-```bash
-cp backend/.env.example backend/.env
-# 编辑 backend/.env
-```
-
-填入以下内容：
-```env
-DEEPSEEK_API_KEY=你的DeepSeek_API_Key
-DEEPSEEK_API_URL=https://api.deepseek.com/v1/chat/completions
-AMAP_WEB_API_KEY=你的高德Web服务Key
-SUPABASE_URL=https://你的项目ID.supabase.co
-SUPABASE_ANON_KEY=你的Supabase_Anon_Key
-SUPABASE_SERVICE_ROLE_KEY=你的Supabase_Service_Key
-PORT=3000
-```
-
-**前端** `frontend/.env`：
-```bash
-cp frontend/.env.example frontend/.env
-# 编辑 frontend/.env
-```
-
-填入以下内容：
-```env
-VITE_AMAP_JS_API_KEY=你的高德JS_API_Key
-VITE_SUPABASE_URL=https://你的项目ID.supabase.co
-VITE_SUPABASE_ANON_KEY=你的Supabase_Anon_Key
-```
-
-### 4. 安装依赖
-```bash
-# 后端
-cd backend
-npm install
-
-# 前端
-cd frontend
-npm install
-```
-
-### 5. 启动服务
-```bash
-# 终端 1 - 启动后端
-cd backend
-npm run dev
-# 运行在 http://localhost:3000
-
-# 终端 2 - 启动前端
-cd frontend
-npm run dev
-# 运行在 http://localhost:5173
-```
-
-### 6. 访问应用
-打开浏览器访问 `http://localhost:5173`
-
----
-
-## 🐳 部署方式二：Docker 部署
-
-### 1. 克隆代码并初始化数据库
-```bash
-git clone https://github.com/YOUR_USERNAME/AI-Travel-Planner.git
-cd AI-Travel-Planner
-```
-
-按照上面"源码部署"的步骤 2 初始化 Supabase 数据库。
-
-### 2. 配置环境变量
-
-只需配置 `backend/.env`（同源码部署的步骤 3）
-
-### 3. 修改 docker-compose.yml
-
-编辑 `docker-compose.yml`，在 `frontend` 服务下添加构建参数：
-
-```yaml
-services:
-  frontend:
-    build:
-      context: ./frontend
-      dockerfile: Dockerfile
-      args:
-        VITE_AMAP_JS_API_KEY: "你的高德JS_API_Key"
-        VITE_SUPABASE_URL: "你的Supabase_URL"
-        VITE_SUPABASE_ANON_KEY: "你的Supabase_Anon_Key"
-    ports:
-      - "80:80"
-    depends_on:
-      - backend
-    networks:
-      - app-network
-
-  backend:
-    build:
-      context: ./backend
-      dockerfile: Dockerfile
-    ports:
-      - "3000:3000"
-    env_file:
-      - ./backend/.env
-    networks:
-      - app-network
-
-networks:
-  app-network:
-    driver: bridge
-```
-
-### 4. 启动容器
-```bash
-docker-compose up -d
-```
-
-### 5. 访问应用
-- 前端：`http://localhost`
-- 后端：`http://localhost:3000`
-
-### Docker 管理命令
-```bash
-# 查看日志
-docker-compose logs -f
-
-# 停止服务
-docker-compose down
-
-# 重启服务
-docker-compose restart
-
-# 重新构建
-docker-compose up -d --build
-```
-
----
-
-## 📁 项目结构
+## 📋 目录结构
 
 ```
 AI-Travel-Planner/
-├── backend/
+├── backend/                    # 后端服务
 │   ├── src/
-│   │   ├── routes/          # API 路由
-│   │   ├── services/        # Agent 业务逻辑
-│   │   │   ├── llm/         # DeepSeek AI 服务
-│   │   │   ├── map/         # 高德地图服务
-│   │   │   └── itinerary/   # 行程生成器
-│   │   ├── middleware/      # 认证、错误处理
-│   │   └── config/          # 配置文件
-│   ├── supabase-schema.sql  # 数据库表结构
-│   ├── Dockerfile
-│   └── package.json
-├── frontend/
+│   │   ├── app.ts             # 应用入口
+│   │   ├── config/            # 配置文件
+│   │   ├── middleware/        # 中间件
+│   │   ├── routes/            # 路由
+│   │   ├── services/          # 业务逻辑
+│   │   │   ├── itinerary/     # 行程生成
+│   │   │   ├── llm/           # LLM 服务
+│   │   │   └── map/           # 地图服务
+│   │   └── types/             # 类型定义
+│   ├── package.json
+│   ├── tsconfig.json
+│   └── .env                   # 环境变量（需手动创建）
+│
+├── frontend/                   # 前端应用
 │   ├── src/
-│   │   ├── pages/           # 页面组件
-│   │   ├── components/      # UI 组件
-│   │   ├── services/        # API 调用
-│   │   └── stores/          # 状态管理
-│   ├── Dockerfile
-│   ├── nginx.conf
-│   └── package.json
-└── docker-compose.yml       # Docker 编排配置
+│   │   ├── components/        # React 组件
+│   │   ├── pages/             # 页面
+│   │   ├── services/          # API 服务
+│   │   ├── stores/            # 状态管理
+│   │   ├── config/            # 配置
+│   │   └── types/             # 类型定义
+│   ├── package.json
+│   ├── vite.config.ts
+│   └── .env.production        # 生产环境变量（需手动创建）
+│
+├── docs/                       # 文档
+│   ├── JOURNEY.md             # 工作历程
+│   ├── DEPLOYMENT.md          # 部署指南
+│   ├── QUICK_START.md         # 快速开始
+│   ├── TROUBLESHOOTING.md     # 故障排查
+│   ├── DOCKER_SETUP.md        # Docker 配置
+│   └── CHANGELOG.md           # 更新日志
+│
+├── Dockerfile                  # 单镜像构建配置
+├── docker-compose-single.yml   # 单镜像部署配置
+├── docker-compose.yml          # 分离架构部署配置（备选）
+├── nginx-single.conf          # Nginx 配置
+├── start.sh                   # 容器启动脚本
+├── verify-deployment.sh       # 部署验证脚本
+├── Makefile                   # 快捷命令
+└── README.md                  # 本文件
 ```
 
 ---
 
-## 🔧 常见问题
+## 🚀 快速开始
 
-### 1. 保存行程时报错 "Missing or invalid authorization header"
+### 方式一：使用 Docker 单镜像部署（推荐）
 
-**原因**：数据库表结构未正确创建
+**1. 配置环境变量**
 
-**解决**：
-1. 确认已在 Supabase 中执行 `backend/supabase-schema.sql`
-2. 检查 Table Editor 中是否有 `itineraries` 表
-3. 确认 `itineraries` 表包含 `data` JSONB 字段
-
-### 2. 地图不显示
-
-**原因**：高德地图 API Key 类型错误
-
-**解决**：
-- 前端必须使用 **"Web端(JS API)"** 类型的 Key
-- 后端必须使用 **"Web服务"** 类型的 Key
-- 两个 Key 不能混用
-
-### 3. AI 生成失败
-
-**原因**：DeepSeek API Key 无效或余额不足
-
-**解决**：
-1. 检查 `backend/.env` 中的 `DEEPSEEK_API_KEY`
-2. 访问 [DeepSeek 控制台](https://platform.deepseek.com) 确认 Key 状态
-3. 确保账户有足够余额
-
-### 4. Docker 构建失败
-
-**解决**：
+创建 `backend/.env` 文件：
 ```bash
-# 清理缓存
-docker-compose down
-docker system prune -a
+SUPABASE_URL=你的_supabase_url
+SUPABASE_ANON_KEY=你的_supabase_key
+DEEPSEEK_API_KEY=你的_deepseek_key
+AMAP_WEB_API_KEY=你的_高德地图_key
+```
 
-# 重新构建
-docker-compose up -d --build
+创建 `frontend/.env.production` 文件：
+```bash
+VITE_SUPABASE_URL=你的_supabase_url
+VITE_SUPABASE_ANON_KEY=你的_supabase_key
+VITE_AMAP_JS_API_KEY=你的_高德地图_js_key
+VITE_AMAP_WEB_API_KEY=你的_高德地图_web_key
+```
+
+**2. 构建并启动**
+
+```bash
+# 使用 Makefile
+make build && make up
+
+# 或使用 docker-compose
+docker-compose -f docker-compose-single.yml up -d --build
+```
+
+**3. 访问应用**
+
+打开浏览器访问：http://localhost
+
+---
+
+### 方式二：源代码运行（开发模式）
+
+**1. 安装依赖**
+
+```bash
+# 安装后端依赖
+cd backend
+npm install
+
+# 安装前端依赖
+cd ../frontend
+npm install
+```
+
+**2. 配置环境变量**
+
+创建 `backend/.env` 文件（同上）
+
+**3. 启动服务**
+
+```bash
+# 终端 1: 启动后端
+cd backend
+npm run dev
+
+# 终端 2: 启动前端
+cd frontend
+npm run dev
+```
+
+**4. 访问应用**
+
+打开浏览器访问：http://localhost:5173
+
+---
+
+## 🐳 Docker 部署详细说明
+
+### 单镜像部署
+
+**优点**:
+- ✅ 部署简单（一个镜像）
+- ✅ 资源效率高
+- ✅ 网络延迟低
+- ✅ 适合小型应用
+
+**使用场景**:
+- 单机部署
+- 演示环境
+- 小型应用
+
+```bash
+# 构建镜像
+docker build -t ai-travel-planner .
+
+# 运行容器
+docker run -d -p 80:80 \
+  --env-file backend/.env \
+  ai-travel-planner
+
+# 查看日志
+docker logs -f <container_id>
+```
+
+### 分离架构部署（备选）
+
+**优点**:
+- ✅ 前后端独立扩展
+- ✅ 故障隔离
+- ✅ 符合微服务架构
+
+**使用场景**:
+- 大规模部署
+- 需要独立扩展
+- Kubernetes 环境
+
+```bash
+# 使用原有的 docker-compose
+docker-compose up -d
 ```
 
 ---
 
-## 📝 使用流程
+## 📚 文档
 
-1. **注册账户**：访问应用首页 → 注册
-2. **规划行程**：点击"开始规划旅行" → 填写信息或语音输入
-3. **查看结果**：AI 生成行程 → 地图显示路线
-4. **保存管理**：保存到云端 → "我的行程"中查看
-
----
-
-## 📄 License
-
-MIT
+- **[工作历程](./docs/JOURNEY.md)** - 单镜像部署实现全过程
+- **[部署指南](./docs/DEPLOYMENT.md)** - 完整部署文档
+- **[快速开始](./docs/QUICK_START.md)** - 1分钟快速上手
+- **[故障排查](./docs/TROUBLESHOOTING.md)** - 常见问题解决
+- **[Docker 配置](./docs/DOCKER_SETUP.md)** - Docker 环境配置
+- **[更新日志](./docs/CHANGELOG.md)** - 版本更新记录
 
 ---
 
-**开发框架**：React + Node.js + Supabase  
-**核心技术**：DeepSeek LLM + 高德地图 API
+## 🛠️ 技术栈
+
+### 前端
+- **框架**: React 18 + TypeScript
+- **构建工具**: Vite
+- **样式**: TailwindCSS
+- **状态管理**: Zustand
+- **路由**: React Router
+- **地图**: 高德地图 JS API
+
+### 后端
+- **运行时**: Node.js 20
+- **框架**: Express
+- **语言**: TypeScript
+- **数据库**: Supabase (PostgreSQL)
+- **AI 服务**: DeepSeek API
+- **地图服务**: 高德地图 Web API
+
+### 部署
+- **容器化**: Docker
+- **Web 服务器**: Nginx
+- **进程管理**: Shell Script
+- **编排**: Docker Compose
+
+---
+
+## 🔧 常用命令
+
+### Makefile 命令（推荐）
+
+```bash
+make help      # 查看所有可用命令
+make build     # 构建 Docker 镜像
+make up        # 启动服务
+make down      # 停止服务
+make restart   # 重启服务
+make logs      # 查看实时日志
+make status    # 查看容器状态
+make verify    # 验证部署
+make rebuild   # 完整重建
+make clean     # 清理镜像
+```
+
+### 开发命令
+
+```bash
+# 后端开发
+cd backend
+npm run dev      # 启动开发服务器
+npm run build    # 构建生产版本
+npm start        # 启动生产服务器
+
+# 前端开发
+cd frontend
+npm run dev      # 启动开发服务器
+npm run build    # 构建生产版本
+npm run preview  # 预览生产版本
+```
+
+---
+
+## ⚙️ 环境变量说明
+
+### 后端环境变量 (`backend/.env`)
+
+| 变量名 | 说明 | 必填 |
+|--------|------|------|
+| `SUPABASE_URL` | Supabase 项目 URL | ✅ |
+| `SUPABASE_ANON_KEY` | Supabase 匿名密钥 | ✅ |
+| `SUPABASE_SERVICE_ROLE_KEY` | Supabase 服务密钥 | ✅ |
+| `DEEPSEEK_API_KEY` | DeepSeek API 密钥 | ✅ |
+| `DEEPSEEK_API_URL` | DeepSeek API 地址 | ❌ |
+| `AMAP_WEB_API_KEY` | 高德地图 Web 服务 Key | ✅ |
+
+### 前端环境变量 (`frontend/.env.production`)
+
+| 变量名 | 说明 | 必填 |
+|--------|------|------|
+| `VITE_SUPABASE_URL` | Supabase 项目 URL | ✅ |
+| `VITE_SUPABASE_ANON_KEY` | Supabase 匿名密钥 | ✅ |
+| `VITE_AMAP_JS_API_KEY` | 高德地图 JavaScript API Key | ✅ |
+| `VITE_AMAP_WEB_API_KEY` | 高德地图 Web 服务 Key | ✅ |
+| `VITE_API_BASE_URL` | API 基础路径（可选） | ❌ |
+
+⚠️ **重要**: Vite 要求所有前端环境变量必须以 `VITE_` 开头！
+
+---
+
+## 📊 镜像信息
+
+- **镜像名称**: ai-travel-planner-app:latest
+- **镜像大小**: 208MB
+- **基础镜像**: nginx:alpine + node:20-alpine
+- **架构**: Nginx (前台) + Node.js (后台)
+- **端口**: 80
+
+---
+
+## 🤝 贡献
+
+欢迎贡献代码、报告问题或提出建议！
+
+---
+
+## 📝 许可证
+
+MIT License
+
+---
+
+## 🔗 相关链接
+
+- **Supabase**: https://supabase.com
+- **DeepSeek API**: https://www.deepseek.com
+- **高德开放平台**: https://lbs.amap.com
+
+---
+
+## 📞 支持
+
+如遇问题，请查看：
+1. [故障排查文档](./docs/TROUBLESHOOTING.md)
+2. [部署指南](./docs/DEPLOYMENT.md)
+3. [工作历程](./docs/JOURNEY.md)（了解实现细节）
+
+---
+
+**版本**: 1.0.0  
+**最后更新**: 2025-11-05

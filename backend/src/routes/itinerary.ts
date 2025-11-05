@@ -158,7 +158,8 @@ router.post('/generate', optionalAuthMiddleware, async (req: AuthRequest & ApiKe
       for await (const update of generateCompleteItinerary(travelReqs, req.user?.id, customApiKeys)) {
         console.log('Sending update:', update);
         res.write(`data: ${JSON.stringify(update)}\n\n`);
-        res.flush?.();
+        // @ts-ignore - flush may exist on response object
+        if (typeof res.flush === 'function') res.flush();
       }
       res.end();
     } catch (genError) {

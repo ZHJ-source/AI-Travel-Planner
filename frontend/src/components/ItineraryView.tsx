@@ -136,7 +136,7 @@ const ItineraryView: React.FC<ItineraryViewProps> = ({
                   });
                   if (onEventClick) onEventClick(event);
                   if (onLocationClick && event.latitude && event.longitude) {
-                    onLocationClick(parseFloat(event.latitude), parseFloat(event.longitude));
+                    onLocationClick(Number(event.latitude), Number(event.longitude));
                   }
                 }}
                 className="border-l-4 border-primary-500 pl-4 hover:bg-gray-50 rounded cursor-pointer transition-colors"
@@ -189,7 +189,7 @@ const ItineraryView: React.FC<ItineraryViewProps> = ({
                                 lng: subEvent.longitude
                               });
                               if (onLocationClick && subEvent.latitude && subEvent.longitude) {
-                                onLocationClick(parseFloat(subEvent.latitude), parseFloat(subEvent.longitude));
+                                onLocationClick(Number(subEvent.latitude), Number(subEvent.longitude));
                               }
                             }}
                           >
